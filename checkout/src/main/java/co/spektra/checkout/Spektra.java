@@ -28,6 +28,14 @@ public class Spektra {
     private final static String INITIATE_CHECKOUT_URL = "https://api.spektra.co/api/v1/";
     private final static String AUTH_URL = "https://api.spektra.co/";
 
+    private final static String DEMO_CHECKOUT_URL = "https://demo-checkout.spektra.co/";
+    private final static String DEMO_INITIATE_CHECKOUT_URL = "https://api-test.spektra.co/api/v1/";
+    private final static String DEMO_AUTH_URL = "https://api-test.spektra.co/";
+
+    private enum CheckoutEnvironment{
+        LIVE, DEMO
+    }
+
     private static final String TAG = "SPK";
 
     private String publicKey;
@@ -43,10 +51,15 @@ public class Spektra {
 
     public void checkout(String currency, BigDecimal amount, String description, String spektraAccountName, String successURL, String cancelURL) {
         CheckoutRequest checkoutRequest = new CheckoutRequest(currency, amount, description, spektraAccountName, successURL, cancelURL);
-        authenticate(checkoutRequest);
+        authenticate(checkoutRequest, CheckoutEnvironment.LIVE);
     }
 
-    private void authenticate(final CheckoutRequest request){
+    public void checkoutDemo(String currency, BigDecimal amount, String description, String spektraAccountName, String successURL, String cancelURL) {
+        CheckoutRequest checkoutRequest = new CheckoutRequest(currency, amount, description, spektraAccountName, successURL, cancelURL);
+        authenticate(checkoutRequest, CheckoutEnvironment.DEMO);
+    }
+
+    private void authenticate(final CheckoutRequest request, final CheckoutEnvironment checkoutEnvironment){
         String encoded = null;
         try {
             String appKeySecret = publicKey + ":" + secretKey;
@@ -58,7 +71,7 @@ public class Spektra {
 
 
         Retrofit retrofit = new Retrofit.Builder()
-                .baseUrl(AUTH_URL)
+                .baseUrl(CheckoutEnvironment.LIVE == checkoutEnvironment ? AUTH_URL : DEMO_AUTH_URL)
                 .client(okClient())
                 .addConverterFactory(GsonConverterFactory.create())
                 .build();
@@ -72,7 +85,7 @@ public class Spektra {
 
                 if (response.isSuccessful())  {
                     Log.d(TAG, "Auth response: " + response.body().getAccessToken());
-                    sendCheckout(request, response.body().getAccessToken());
+                    sendCheckout(request, response.body().getAccessToken(), checkoutEnvironment);
                 }else{
                     Log.d(TAG, "onResponse: there is no response");
                 }
@@ -85,9 +98,9 @@ public class Spektra {
         });
     }
 
-    private void sendCheckout(CheckoutRequest request, String token){
+    private void sendCheckout(CheckoutRequest request, String token, final CheckoutEnvironment checkoutEnvironment){
         Retrofit retrofit = new Retrofit.Builder()
-                .baseUrl(INITIATE_CHECKOUT_URL)
+                .baseUrl(CheckoutEnvironment.LIVE == checkoutEnvironment ? INITIATE_CHECKOUT_URL : DEMO_INITIATE_CHECKOUT_URL)
                 .client(okClient())
                 .addConverterFactory(GsonConverterFactory.create())
                 .build();
@@ -101,7 +114,7 @@ public class Spektra {
 
                 if (response.isSuccessful())  {
                     Log.d(TAG, "checkout id: " + response.body().getCheckoutID());
-                    spektraCheckout(response.body().getCheckoutID());
+                    spektraCheckout(response.body().getCheckoutID(), checkoutEnvironment);
                 }else{
                     Log.d(TAG, "onResponse: there is no response");
                 }
@@ -115,8 +128,8 @@ public class Spektra {
     }
 
 
-    private void spektraCheckout(String checkoutId){
-        final Intent intent = new Intent(Intent.ACTION_VIEW).setData(Uri.parse(CHECKOUT_URL + checkoutId));
+    private void spektraCheckout(String checkoutId, CheckoutEnvironment checkoutEnvironment){
+        final Intent intent = new Intent(Intent.ACTION_VIEW).setData(Uri.parse(CheckoutEnvironment.LIVE == checkoutEnvironment ? CHECKOUT_URL : DEMO_CHECKOUT_URL + checkoutId));
         activity.startActivity(intent);
     }
 
